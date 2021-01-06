@@ -53,7 +53,7 @@ end <- proc.time()
 dur <- (end-start)[[3]]/60/60
 ```
 
-### Combine and plot
+### Combine and output
 ```{r}
 # from saved
 cultivars <- list.files("tests.all")
@@ -64,10 +64,27 @@ for (i in 1:length(cultivars)){
   out.all[[i]] <- out
 }
 
-
-# combine into single dataframe
 out.df <- do.call(rbind, out.all)
 
+out.csv <- out.df %>%
+  select(cultivar, type,
+         Ymax.median, # Ymax.lower, Ymax.upper,
+         Ymin.median, # Ymin.lower, Ymin.upper,
+         Ghalf.median, # Ghalf.lower, Ghalf.upper,
+         r2) %>%
+  rename(genotype = cultivar, method_type = type,
+         max_height_cm = Ymax.median,
+         min_height_cm = Ymin.median,
+         max_growth_cm_gdd = Ghalf.median) %>%
+  mutate(method = "Bayesian logistic model of canopy height vs. gdd") %>%
+  relocate(method_type, .after = last_col())
+
+write.csv(out.csv, file = "tests.all/mac_season_6_growth_rate_modeled.csv", row.names = F)
+```
+
+
+Simple plots. 
+``` {r}
 out.df %>%
   mutate(cultivar = fct_reorder(cultivar, Ymax.median)) %>%
   ggplot(aes(x = cultivar, y = Ymax.median)) + 
