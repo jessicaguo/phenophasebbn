@@ -19,6 +19,7 @@ system('wget https://de.cyverse.org/dl/d/A5B5E73A-B528-4704-BD62-F9995AD5EDB4/ta
 # read in CSV filepaths as list
 data_path <- list("tall_season_four.csv", "mac_season_six_2020-04-22.csv", "tall_ksu_data.csv", "tall_clemson_data.csv")
 data_path <- list("tall_season_four.csv", "tall_ksu_data.csv")
+data_path <- list("tall_season_four.csv")
 
 # use lapply to read in csv files from list
   # note: function wrapper necessary to provide input argument to read.csv
@@ -28,6 +29,7 @@ raw_data <- lapply(data_path, FUN = function(i){
 # name each dataframe in the list based on data_path list order
 experiments <- c("mac_season_4", "mac_season_6", "ksu", "clemson")
 experiments <- c("mac_season_4", "ksu")
+experiments <- c("mac_season_4")
 
 names(raw_data) <- experiments
 
@@ -97,10 +99,11 @@ names(filtered_trait_data) <- experiments
 all_cult <- read.csv(file = "~/phenophasebbn/cultivar_lookup_table.csv", header = TRUE,
                      stringsAsFactors = FALSE)
 
+length(which(all_cult$season_4 == 1 & all_cult$season_6 == 1)) # 324 cultivars in both season_4 and season_6
 # first column is a character vector of all cultivars present across all seasons
 # (0 = not in season, 1 = in season; therefore rowsum = 4 is in all)
 # make character vector of all cultivars in all seasons
-cultivars4net <- as.vector(all_cult[all_cult$total_count == 5, 1])
+cultivars4net <- as.vector(all_cult[all_cult$total_count == 5, 1]) # 217 cultivars in all seasons
 
 #define filter cultivar function
 filter_cultivar <- function(df){
@@ -129,6 +132,7 @@ for(i in 1:length(trait_tibbs)){
 trait_tibbs[[i]]$date <- as_date(trait_tibbs[[i]]$date)
 }
 
+sum(table(trait_tibbs[[1]]$cultivar))
 # ================================================================
 # 4) Join with weather data
 # ================================================================
@@ -142,6 +146,7 @@ system('wget https://de.cyverse.org/dl/d/1EB28C81-10A1-4E1B-A406-1D0C6A20AF2D/cl
 weather_raw <- list("mac_season_4_weather.csv", "mac_season_6_weather.csv", "ksu_weather.csv",
                     "clemson_weather.csv")
 weather_raw <- list("mac_season_4_weather.csv", "ksu_weather.csv")
+weather_raw <- list("mac_season_4_weather.csv")
 
 # use map from purrr to read in csv files
 raw_weather_data <- map(.x = weather_raw, .f = function(i){read.csv(i, header = TRUE, stringsAsFactors = FALSE)})
@@ -150,6 +155,8 @@ raw_weather_data <- map(.x = weather_raw, .f = function(i){read.csv(i, header = 
 names(raw_weather_data) <- c("mac_season_4_weather", "mac_season_6_weather", 
                              "ksu_weather", "clemson_weather")
 names(raw_weather_data) <- c("mac_season_4_weather", "ksu_weather")
+names(raw_weather_data) <- c("mac_season_4_weather")
+
 # colname sanity check
 colnames(raw_weather_data$mac_season_4_weather)
 colnames(raw_weather_data$mac_season_6_weather)
@@ -189,8 +196,35 @@ combined_tibbs_unq[[4]] <- combined_tibbs[[4]]
 #name list items
 names(combined_tibbs_unq) <- experiments
 #sanity check dimensions, appears that the size is cut in half for each dataframe
-dim(combined_tibbs_unq[[2]])
-dim(combined_tibbs[[2]])
+dim(combined_tibbs_unq[[1]])
+dim(combined_tibbs[[1]])
+
+#plot check for random cultivar
+set.seed(8765309)
+cul <- names(table(combined_tibbs[[1]]$cultivar)[which(table(combined_tibbs[[1]]$cultivar) < 50)])
+
+sub_ct <- subset(combined_tibbs[[1]], cultivar %in% cul) %>% 
+  mutate(type = "ct")
+sub_ctu <- subset(combined_tibbs_unq[[1]], cultivar %in% cul) %>% 
+  mutate(type = "ctu")
+
+ggplot(rbind(sub_ct, sub_ctu), aes(x = gdd, y = canopy_height, color = type)) +
+  geom_point() +
+  facet_grid(cultivar~type, scale = "free")
+
+sum_ctu <- combined_tibbs_unq[[1]] %>%
+  group_by(cultivar) %>%
+  summarise(count = length(canopy_height),
+            min_height = min(canopy_height),
+            max_height = max(canopy_height), 
+            min_date = min(date),
+            max_date = max(date),
+            dur_days = difftime(max(date),  min(date), units = "day"),
+            min_gdd = min(gdd),
+            max_gdd = max(gdd),
+            dens = count / as.numeric(dur_days)) %>%
+  arrange(count)
+plot(sum_ctu$dur_days, sum_ctu$dens)
 
 #write out season6 for growth curves
 write.table(combined_tibbs_unq$mac_season_6, file = "~/phenophasebbn/season6_combined.txt",
